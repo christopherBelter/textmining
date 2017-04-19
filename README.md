@@ -76,7 +76,9 @@ Now before we can do anything meaningful with the publication abstracts, we need
     corpDocs <- tm_map(corpDocs, stemDocument)
     corpDocs <- tm_map(corpDocs, stripWhitespace)
 
-Finally, we can create the document-term matrix, set the rownames of the matrix to be the document PMIDs (so we can map the results back onto the original document set later on) and remove documents without abstracts to avoid errors later on.
+Note: if you get an error message after the stemDocument command, it probably means you don't have the snowballC package installed, which the tm package uses to stem words. Just install the snowballC package and try the command again and it'll probably work. 
+
+Finally, we can create the document-term matrix, set the rownames of the matrix to be the document PMIDs (so we can map the results back onto the original document set later on) and remove documents without abstracts to avoid future errors.
 
     dtm <- DocumentTermMatrix(corpDocs)
     rownames(dtm) <- pmid
@@ -131,44 +133,45 @@ We can also create a list of associated terms for a list of terms using R's c() 
     assoc4
 
 ### Cluster documents by topic
-x
+
+Another common task in text mining is to group similar documents into topics. There are lots of ways to do this, but in this example I'll use Latent Dirichlet Analysis, also referred to as LDA or topic modeling. Essentially, LDA works by first creating a set of term vocabularies (based on term co-occurrences in documents) for each of a prespecified number of topics, and then using those vocabularies to assign a probability that each document belongs to each topic. These probabilities allow documents to be assigned to multiple topics, which we'll do a bit later on.
+
+The first step is to load the package and to set the seed for the LDA algorithm. The seed is a list of document numbers that the algorithm will use to start it's sampling process. The seed should be different for each document set, so choose 5 random numbers that are all less than the total number of documents in your data set. Since the document set here includes around 1300 papers, I'll set them all to less than that. 
 
     library(topicmodels)
     seed <- list(79, 524, 1291, 706, 1044)
 
-x
+With that done, we can now run the actual algorithm. Be careful with this step, because depending on your computer and the number of documents you have, it can take anywhere from 5 minutes to 48 hours to run. 
 
     ldaOut <- LDA(dtm, 10, method = "Gibbs", control = list(nstart = 5, seed = seed, best = TRUE, burnin = 4000, iter = 2000, thin = 500))
 
-x
+There's a lot in that command, so let me point out the relevant parts. The LDA() function calls the algorithm and the arguments set the parameters you want to use. In this case, I'm running it on the document term matrix I created in the tm package, I'm telling it to look for 10 topics in my document set, to use the Gibbs sampling method, and a number of other arguments in the 'control' argument. Most of this should stay the same from analysis to analysis, but you might want to change the number of topics, especially for larger data sets to obtain more or less granular topics. 
+
+Once the algorithm is finished, there's a lot you can do with this ldaOut object. First, we'll extract the primary topic number for each document and save that to a .csv file.
 
     docTopics <- as.matrix(topics(ldaOut))
     write.csv(docTopics, file = "docstotopics.csv")
 
-x
+Next, we'll extract the top 15 terms that appear in each topic. That is, we'll create lists of the 15 terms that most frequently appear in each of the 10 topics the algorithm identified. We'll also save that list to a .csv file and print it to the console to have a look. These terms are essential for understanding what each topic is actually about and subsequently naming it.
 
     topicTerms <- as.matrix(terms(ldaOut, 15))
     write.csv(topicTerms, file = "topicsToTerms.csv")
     topicTerms
 
-x
+Next, we'll extract the full set of probabilities that each document belongs to each topic and save it to a .csv file.
 
     topicProbs <- as.data.frame(ldaOut@gamma)
     write.csv(topicProbs, file = "topicProbabilities.csv")
 
-
-x
+One thing that we can do with these probabilities is to generate a list of topics to which each document has a high probability of belonging. In this case, we'll extract a list of the topics to which each document has at least a 15% probability of belonging, and then paste the list for each document together to create a vector of term lists.
 
     topicList <- topics(ldaOut, threshold = 0.15)
     topicList <- sapply(topicList, paste0, collapse = "|")
 
-x
+Finally, we'll merge the both the primary topic and the topic probability list back into our original publications data frame and write the clustered data to a .csv file for later use.
 
     newData <- merge(theData, docTopics, by.x = "pmid", by.y = "row.names", all.x = TRUE)
     newData <- merge(newData, topicList, by.x = "pmid", by.y = "row.names", all.x = TRUE)
-
-x
-
     write.csv(newData, file = "clustered_data.csv")
 
 Obviously there are lots of other things that we could do with this data set, but this gives you an idea of what's possible and some of the basic code to get you there. 
