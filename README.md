@@ -41,8 +41,7 @@ Now you can use the other helper function in the pubmedXML.R file to extract the
 
 Finally, remove the pmids object from the PubMed history server and the cxml object to free up some additional memory.
 
-    rm(pmids)
-    rm(cxml)
+    rm(pmids, cxml)
 
 ### Docuemnt preprocessing
 
@@ -55,7 +54,7 @@ Now that you have the documents in a data frame in R, you can do some basic coun
 
 To do more detailed analyses, we'll create a document-term matrix from the publication set in which rows are documents and columns are terms that appear in their abstracts. First, we'll isolate the columns we're interested in using, namely the publications' abstracts and PMIDs.
 
-    docs <- data.frame(theData$abstract)
+    docs <- data.frame(doc_id = theData$pmid, text = theData$abstract)
     pmid <- as.vector(theData$pmid)
 
 Then we'll load the relevant packages for doing text mining and working with the resulting sparse document-term matrix. 
@@ -136,10 +135,11 @@ We can also create a list of associated terms for a list of terms using R's c() 
 
 Another common task in text mining is to group similar documents into topics. There are lots of ways to do this, but in this example I'll use Latent Dirichlet Analysis, also referred to as LDA or topic modeling. Essentially, LDA works by first creating a set of term vocabularies (based on term co-occurrences in documents) for each of a prespecified number of topics, and then using those vocabularies to assign a probability that each document belongs to each topic. These probabilities allow documents to be assigned to multiple topics, which we'll do a bit later on.
 
-The first step is to load the package and to set the seed for the LDA algorithm. The seed is a list of document numbers that the algorithm will use to start it's sampling process. The seed should be different for each document set, so choose 5 random numbers that are all less than the total number of documents in your data set. Since the document set here includes around 1300 papers, I'll set them all to less than that. 
+The first step is to load the package and to set the seed for the LDA algorithm. The seed is a list of document numbers that the algorithm will use to start it's sampling process. The seed should be different for each document set, so either choose 5 random numbers that are all less than the total number of documents in your data set, or, as I show in the code, use the sample() function to have R choose 5 random numbers for you. 
 
     library(topicmodels)
-    seed <- list(79, 524, 1291, 706, 1044)
+    sample(1504, 5)
+    seed <- list(1219, 567, 465, 137, 874)
 
 With that done, we can now run the actual algorithm. Be careful with this step, because depending on your computer and the number of documents you have, it can take anywhere from 5 minutes to 48 hours to run. 
 
@@ -149,12 +149,13 @@ There's a lot in that command, so let me point out the relevant parts. The LDA()
 
 Once the algorithm is finished, there's a lot you can do with this ldaOut object. First, we'll extract the primary topic number for each document and save that to a .csv file.
 
-    docTopics <- as.matrix(topics(ldaOut))
+    docTopics <- topics(ldaOut)
+    docTopics <- data.frame(id = names(docTopics), primaryTopic = docTopics)
     write.csv(docTopics, file = "docstotopics.csv")
 
 Next, we'll extract the top 15 terms that appear in each topic. That is, we'll create lists of the 15 terms that most frequently appear in each of the 10 topics the algorithm identified. We'll also save that list to a .csv file and print it to the console to have a look. These terms are essential for understanding what each topic is actually about and subsequently naming it.
 
-    topicTerms <- as.matrix(terms(ldaOut, 15))
+    topicTerms <- terms(ldaOut, 15)
     write.csv(topicTerms, file = "topicsToTerms.csv")
     topicTerms
 
@@ -167,11 +168,12 @@ One thing that we can do with these probabilities is to generate a list of topic
 
     topicList <- topics(ldaOut, threshold = 0.15)
     topicList <- sapply(topicList, paste0, collapse = "|")
+    topicList <- data.frame(id = names(topicList), topicList = topicList)
 
 Finally, we'll merge the both the primary topic and the topic probability list back into our original publications data frame and write the clustered data to a .csv file for later use.
 
-    newData <- merge(theData, docTopics, by.x = "pmid", by.y = "row.names", all.x = TRUE)
-    newData <- merge(newData, topicList, by.x = "pmid", by.y = "row.names", all.x = TRUE)
+    newData <- merge(theData, docTopics, by.x = "pmid", by.y = "id", all.x = TRUE)
+    newData <- merge(newData, topicList, by.x = "pmid", by.y = "id", all.x = TRUE)
     write.csv(newData, file = "clustered_data.csv")
 
 Obviously there are lots of other things that we could do with this data set, but this gives you an idea of what's possible and some of the basic code to get you there. 
