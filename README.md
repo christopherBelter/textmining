@@ -55,7 +55,7 @@ Now that you have the documents in a data frame in R, you can do some basic coun
 To do more detailed analyses, we'll create a document-term matrix from the publication set in which rows are documents and columns are terms that appear in their abstracts. First, we'll isolate the columns we're interested in using, namely the publications' abstracts and PMIDs.
 
     docs <- data.frame(doc_id = theData$pmid, text = theData$abstract)
-    pmid <- as.vector(theData$pmid)
+    pmid <- theData$pmid
 
 Then we'll load the relevant packages for doing text mining and working with the resulting sparse document-term matrix. 
 
