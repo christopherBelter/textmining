@@ -2,12 +2,12 @@
 clean_api_xml <- function(infile, outfile) {
 	theData <- readChar(infile, file.info(infile)$size, useBytes = TRUE)
 	theData <- gsub("<?xml version=\"1.0\" ?>", "", theData, fixed = TRUE)
-	theData <- gsub("<!DOCTYPE PubmedArticleSet PUBLIC \"-//NLM//DTD PubMedArticle, 1st January 2017//EN\" \"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_170101.dtd\">", "", theData, fixed = TRUE, useBytes = TRUE)
+	theData <- gsub("<!DOCTYPE PubmedArticleSet PUBLIC \"-//NLM//DTD PubMedArticle, 1st January 2018//EN\" \"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_180101.dtd\">", "", theData, fixed = TRUE, useBytes = TRUE)
 	theData <- gsub("<PubmedArticleSet>", "", theData, fixed = TRUE)
 	theData <- gsub("</PubmedArticleSet>", "", theData, fixed = TRUE)
 	theData <- gsub("<U\\+\\w{4}>", "", theData) ## note: with some files this doesn't catch everything; potial issue with <OtherAbstract> tags especially
-	theData <- paste("<?xml version=\"1.0\" ?>", "<!DOCTYPE PubmedArticleSet PUBLIC \"-//NLM//DTD PubMedArticle, 1st January 2017//EN\" \"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_170101.dtd\">", "<PubmedArticleSet>", theData, sep = "\n")
-	theData <- paste(theData, "</PubmedArticleSet>")
+	theData <- paste("<?xml version=\"1.0\" ?>", "<!DOCTYPE PubmedArticleSet PUBLIC \"-//NLM//DTD PubMedArticle, 1st January 2018//EN\" \"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_180101.dtd\">", "<PubmedArticleSet>", theData, "</PubmedArticleSet>", sep = "\n")
+	#theData <- paste(theData, "</PubmedArticleSet>")
 	theData <- iconv(theData, to = "UTF-8", sub = "")
 	writeLines(theData, outfile, sep = " ")
 	return(theData)
@@ -68,9 +68,12 @@ extract_xml <- function(theFile) {
 	grantCountry <- sapply(grantCountry, paste, collapse = "|")
 	grantCountry <- sapply(strsplit(grantCountry, "|", fixed = TRUE), unique)
 	grantCountry <- sapply(grantCountry, paste, collapse = "|")
+	nctID <- lapply(records, xpathSApply, ".//DataBank[DataBankName = 'ClinicalTrials.gov']/AccessionNumberList/AccessionNumber", xmlValue)
+	nctID[sapply(nctID, is.null)] <- NA
+	nctID <- sapply(nctID, paste, collapse = "|")
 	ptype <- lapply(records, xpathSApply, ".//PublicationType", xmlValue)
 	ptype[sapply(ptype, is.list)] <- NA
 	ptype <- sapply(ptype, paste, collapse = "|")
-	theDF <- data.frame(pmid, doi, authors, year, articletitle, journal, volume, issue, pages, abstract, meshHeadings, grantAgency, grantNumber, grantCountry, ptype, stringsAsFactors = FALSE)
+	theDF <- data.frame(pmid, doi, authors, year, articletitle, journal, volume, issue, pages, abstract, meshHeadings, grantAgency, grantNumber, grantCountry, nctID, ptype, stringsAsFactors = FALSE)
 	return(theDF)
 }
