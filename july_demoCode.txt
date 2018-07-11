@@ -8,7 +8,7 @@ library(reutils)
 mquery <- "zika virus[mh] AND 2016[dp]"
 pmids <- esearch(mquery, db = "pubmed", usehistory = TRUE)
 pmids
-rxml <- efetch(pmids, retmode = "xml", outfile = "huntingtonPubs_raw.xml")
+rxml <- efetch(pmids, retmode = "xml", outfile = "zikaPubs_raw.xml")
 cxml <- clean_api_xml(rxml, outfile = "zikaPubs_clean.xml")
 theData <- extract_xml(cxml)
 rm(pmids, cxml)
@@ -75,7 +75,7 @@ ldaOut <- LDA(dtm, 10, method = "Gibbs", control = list(nstart = 5, seed = seed,
 docTopics <- topics(ldaOut)
 docTopics <- data.frame(id = names(docTopics), primaryTopic = docTopics)
 write.csv(docTopics, file = "docstotopics.csv")
-topicTerms <- terms(ldaOut, 15)
+topicTerms <- terms(ldaOut, 12)
 write.csv(topicTerms, file = "topicsToTerms.csv")
 topicTerms
 topicProbs <- as.data.frame(ldaOut@gamma)
