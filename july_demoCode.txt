@@ -69,8 +69,8 @@ assoc3
 
 ## cluster by topic
 library(topicmodels)
-sample(x, 5)
-seed <- list(x, x, x, x, x)
+sample(987, 5)
+seed <- list(769, 242, 815, 196, 82)
 ldaOut <- LDA(dtm, 10, method = "Gibbs", control = list(nstart = 5, seed = seed, best = TRUE, burnin = 4000, iter = 2000, thin = 500))
 docTopics <- topics(ldaOut)
 docTopics <- data.frame(id = names(docTopics), primaryTopic = docTopics)
