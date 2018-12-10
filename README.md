@@ -142,7 +142,7 @@ Another common task in text mining is to find associations between terms. That i
 
 We can also create a list of associated terms for a list of terms using R's c() function. In this example, we'll look for terms associated with either 'dengue' or 'flavivirus', other emerging tropical diseases frequently discussed along with Zika.
 
-    assoc3 <- findAssocs(dtm, c("htt", "huntingtin"), 0.2)
+    assoc3 <- findAssocs(dtm, c("dengu", "flavivirus"), 0.2)
     assoc3
 
 ### Cluster documents by topic
