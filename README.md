@@ -15,9 +15,9 @@ First, set your working directory and load the necessary helper files and packag
     mystopwords <- scan("stopwords.txt", what="varchar", skip=1)
     library(reutils)
 
-Then save the PubMed search query you want to run. In this case I'll search for publications on Huntington's Disease published over a three-year time period.
+Then save the PubMed search query you want to run. In this case I'll search for publications on Zika virus published in 2016.
 
-    mquery <- "huntington disease[mh] AND 2013:2015[dp]"
+    mquery <- "zika virus[mh] AND 2016[dp]"
 
 Next, run the search against the PubMed API and save the pmids of the search results to NCBI's history server so you can download them later.
 
@@ -29,11 +29,11 @@ Now you can get some basic information about the search results by
 
 Then download the full records of the search results in XML format and save them to a text file.
 
-    rxml <- efetch(pmids, retmode = "xml", outfile = "huntingtonPubs_raw.xml")
+    rxml <- efetch(pmids, retmode = "xml", outfile = "zikaPubs_raw.xml")
 
 Since the search returned more than 500 results, the reutils package downloaded them in batches of 500 and saved all of the batches to the outfile specified in the efetch() function. As a result, the outfile actually consists of three separate XML files pasted together, so you cannot parse it as it is. So, use the helper function clean_api_xml() in the pubmedXML.R file to remove the extra headers and footers.
 
-    cxml <- clean_api_xml(rxml, outfile = "huntingtonPubs_clean.xml")
+    cxml <- clean_api_xml(rxml, outfile = "zikaPubs_clean.xml")
 
 Now you can use the other helper function in the pubmedXML.R file to extract the XML data into a data frame in R.
 
@@ -45,17 +45,19 @@ Finally, remove the pmids object from the PubMed history server and the cxml obj
 
 ### Docuemnt preprocessing
 
-Now that you have the documents in a data frame in R, you can do some basic count analyses using various functions in R. For example, you can use the plyr package to count and display the most frequently occurring MeSH headings in the publication set.
+Now that you have the documents in a data frame in R, you can do some basic count analyses using various functions in R. For example, we can use the plyr package to count and display the most frequently occurring journals and MeSH headings in the publication set.
 
     library(plyr)
+    journals <- count(theData$journal)
+    journals <- journals[order(journals$freq),]
+    tail(journals, 10)
     mesh <- count(unlist(strsplit(theData$meshHeadings, "|", fixed = TRUE)))
     mesh <- mesh[order(mesh$freq),]
     tail(mesh, 25)
 
-To do more detailed analyses, we'll create a document-term matrix from the publication set in which rows are documents and columns are terms that appear in their abstracts. First, we'll isolate the columns we're interested in using, namely the publications' abstracts and PMIDs.
+To do more detailed analyses, we'll create a document-term matrix from the publication set in which rows are documents and columns are terms that appear in their abstracts. First, we'll create a data frame with the document ID (we'll use the PMID for this) and a combined title and abstract field that contains all of the relevant text for us to work with.
 
-    docs <- data.frame(doc_id = theData$pmid, text = theData$abstract)
-    pmid <- theData$pmid
+    docs <- data.frame(doc_id = theData$pmid, text = paste(theData$articletitle, theData$abstract, sep = ". ")
 
 Then we'll load the relevant packages for doing text mining and working with the resulting sparse document-term matrix. 
 
@@ -66,7 +68,7 @@ The first step in working with the tm package is to create a document corpus, in
 
     corpDocs <- Corpus(DataframeSource(docs))
 
-Now before we can do anything meaningful with the publication abstracts, we need to do some preprocessing on those abstracts. We'll use the tm_map() function to apply a series of functions to each document in the corpus. The next lines remove punctuation, transform all of the characters to lowercase, remove stopwords like 'and', 'the', and 'of' in two steps (the first uses the base set of stopwords and the second uses a list of custom stopwords provided in this repo), stem the terms in each document to remove word endings like '-s' and '-ing', and finally strip any extra whitespace created in the previous operations.
+Now before we can do anything meaningful with these documents, we need to do some preprocessing on the text. We'll use the tm_map() function to apply a series of functions to each document in the corpus. The next lines remove punctuation, transform all of the characters to lowercase, remove stopwords like 'and', 'the', and 'of' in two steps (the first uses the base set of stopwords and the second uses a list of custom stopwords provided in this repo), stem the terms in each document to remove word endings like '-s' and '-ing', and finally strip any extra whitespace created in the previous operations.
 
     corpDocs <- tm_map(corpDocs, removePunctuation)
     corpDocs <- tm_map(corpDocs, content_transformer(tolower))
@@ -80,7 +82,7 @@ Note: if you get an error message after the stemDocument command, it probably me
 Finally, we can create the document-term matrix, set the rownames of the matrix to be the document PMIDs (so we can map the results back onto the original document set later on) and remove documents without abstracts to avoid future errors.
 
     dtm <- DocumentTermMatrix(corpDocs)
-    rownames(dtm) <- pmid
+    rownames(dtm) <- theData$pmid
     dtm <- dtm[row_sums(dtm) > 0,]
 
 As before, we can get some basic information about the document term matrix we've created by simply doing
@@ -92,11 +94,17 @@ You'll note the high term sparsity in the matrix. This essentially means we have
     dtm <- removeSparseTerms(dtm, 0.99)
     dtm
 
+After removing sparse terms, it's usually a good idea to re-remove documents without any text, because sometimes documents only contain sparse terms. That is, after removing sparse terms, some documents don't have any text left. So we'll do
+
+    dtm <- dtm[row_sums(dtm) > 0,]
+    
+again, just to prevent any additional errors later on. 
+
 ### Finding frequently occurring terms and term correlations
 
-One of the most common tasks in text mining is to find the most frequently occurring terms in the document set. The tm package provides a couple of ways of doing this, but we can also use the slam package to do others. First, we can find the terms that appear at least x times in the entire data set using the findFreqTerms() function. We'll find the terms that appear at least 400 times in the data set.
+One of the most common tasks in text mining is to find the most frequently occurring terms in the document set. The tm package provides a couple of ways of doing this, but we can also use the slam package to do others. First, we can find the terms that appear at least x times in the entire data set using the findFreqTerms() function. We'll find the terms that appear at least 100 times in the data set.
 
-    findFreqTerms(dtm, 400)
+    findFreqTerms(dtm, 100)
 
 Another thing you can do is find the most frequently occurring terms in each individual document in the data set. We'll create a new object, tDcos, to store this information. 
 
@@ -109,39 +117,44 @@ To access the terms appearing in any given document, we can use the standard R s
 
 or specify a document by it's PMID.
 
-    tDocs$`26767207`
+    tDocs$`28277248`
 
 Finally, we can also create a list of terms that appear most frequently in the entire document set and actually get the number of times each term appears in all documents. You could probably use the base colSums() function, but I happen to use the col_sums() function from the slam package instead. Here, we'll create a list of all terms that appear in the dtm, sort them by occurrence frequency, and then print out the top 50. 
 
     theTerms <- col_sums(dtm)
     theTerms <- sort(theTerms)
     tail(theTerms, 50)
+    
+This term list counts the total number of appearances of each term in all documents, so terms that appear multiple times in a single document are counted each time they appear. If, instead, you want to count terms by the number of documents in which they appear, do the following.
 
-Another common task in text mining is to find associations between terms. That is, we can generate a list of terms that frequently co-occur with a specified term or set of terms. The function in tm is findAssocs(). In this example, we'll find term associations with the terms 'cag' (actually the genetic marker for Huntington's disease), 'protein', and 'gene' with a correlation of 0.2 or higher. 
+    theTerms2 <- col_sums(dtm > 0)
+    theTerms2 <- sort(theTerms2)
+    tail(theTerms2, 50)
+    
+Essentially, by passing a comparison (dtm > 0) to the col_sums() function, you temporarily transform the dtm into a TRUE/FALSE matrix and, since in R TRUE has a numeric value of 1 and FALSE has a value of 0, when you add up the columns in that T/F matrix you add up the number of documents in which each term occurs.
 
-    assoc1 <- findAssocs(dtm, "cag", 0.2)
+Another common task in text mining is to find associations between terms. That is, we can generate a list of terms that frequently co-occur with a specified term or set of terms. The function in tm is findAssocs(). In this example, we'll find term associations with the terms 'microcephaly' and 'mosquito' with a correlation greater than 0.2. 
+
+    assoc1 <- findAssocs(dtm, "microcephali", 0.2)
     assoc1
-    assoc2 <- findAssocs(dtm, "protein", 0.2)
+    assoc2 <- findAssocs(dtm, "mosquito", 0.2)
     assoc2
-    assoc3 <- findAssocs(dtm, "gene", 0.2)
+
+We can also create a list of associated terms for a list of terms using R's c() function. In this example, we'll look for terms associated with either 'dengue' or 'flavivirus', other emerging tropical diseases frequently discussed along with Zika.
+
+    assoc3 <- findAssocs(dtm, c("htt", "huntingtin"), 0.2)
     assoc3
-
-We can also create a list of associated terms for a list of terms using R's c() function. In this example, we'll look for terms associated with either 'htt' or 'huntingtin', which are variant ways of referring to the specific gene associated with Huntington's Disease.
-
-    assoc4 <- findAssocs(dtm, c("htt", "huntingtin"), 0.2)
-    assoc4
 
 ### Cluster documents by topic
 
 Another common task in text mining is to group similar documents into topics. There are lots of ways to do this, but in this example I'll use Latent Dirichlet Analysis, also referred to as LDA or topic modeling. Essentially, LDA works by first creating a set of term vocabularies (based on term co-occurrences in documents) for each of a prespecified number of topics, and then using those vocabularies to assign a probability that each document belongs to each topic. These probabilities allow documents to be assigned to multiple topics, which we'll do a bit later on.
 
-The first step is to load the package and to set the seed for the LDA algorithm. The seed is a list of document numbers that the algorithm will use to start it's sampling process. The seed should be different for each document set, so either choose 5 random numbers that are all less than the total number of documents in your data set, or, as I show in the code, use the sample() function to have R choose 5 random numbers for you. 
+The first step is to load the package and to set the seed for the LDA algorithm. The seed is a list of document numbers that the algorithm will use to start it's sampling process. The seed should be different for each document set, so choose 5 random numbers that are all less than the total number of documents in your data set. Completely unscientifically, I've found that if you choose 5 numbers that are relatively evenly spaced across the number of documents in your dtm, the clustering seems to work better. So, since we have around 1000 documents in this particular dtm, I'll choose numbers that are (1000 / 5) around 200 apart. 
 
     library(topicmodels)
-    sample(1504, 5)
-    seed <- list(1219, 567, 465, 137, 874)
+    seed <- list(106, 375, 519, 781, 944)
 
-With that done, we can now run the actual algorithm. Be careful with this step, because depending on your computer and the number of documents you have, it can take anywhere from 5 minutes to 48 hours to run. 
+With that done, we can now run the actual algorithm. Be careful with this step, because depending on your computer, the number of topics you select, and the number of documents you have, it can take anywhere from 5 minutes to 48 hours to run. 
 
     ldaOut <- LDA(dtm, 10, method = "Gibbs", control = list(nstart = 5, seed = seed, best = TRUE, burnin = 4000, iter = 2000, thin = 500))
 
@@ -175,5 +188,10 @@ Finally, we'll merge the both the primary topic and the topic probability list b
     newData <- merge(theData, docTopics, by.x = "pmid", by.y = "id", all.x = TRUE)
     newData <- merge(newData, topicList, by.x = "pmid", by.y = "id", all.x = TRUE)
     write.csv(newData, file = "clustered_data.csv")
+    
+We can then get the number of documents per topic with the plyr count() function, as before.
+
+    pubsPerTopic <- count(newData$primaryTopic)
+    pubsPerTopic
 
 Obviously there are lots of other things that we could do with this data set, but this gives you an idea of what's possible and some of the basic code to get you there. 
