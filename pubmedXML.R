@@ -2,11 +2,11 @@
 clean_api_xml <- function(infile, outfile) {
 	theData <- readChar(infile, file.info(infile)$size, useBytes = TRUE)
 	theData <- gsub("<?xml version=\"1.0\" ?>", "", theData, fixed = TRUE)
-	theData <- gsub("<!DOCTYPE PubmedArticleSet PUBLIC \"-//NLM//DTD PubMedArticle, 1st June 2018//EN\" \"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_180601.dtd\">", "", theData, fixed = TRUE, useBytes = TRUE)
+	theData <- gsub("<!DOCTYPE PubmedArticleSet PUBLIC \"-//NLM//DTD PubMedArticle, 1st January 2019//EN\" \"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd\">", "", theData, fixed = TRUE, useBytes = TRUE)
 	theData <- gsub("<PubmedArticleSet>", "", theData, fixed = TRUE)
 	theData <- gsub("</PubmedArticleSet>", "", theData, fixed = TRUE)
 	theData <- gsub("<U\\+\\w{4}>", "", theData) ## note: with some files this doesn't catch everything; potial issue with <OtherAbstract> tags especially
-	theData <- paste("<?xml version=\"1.0\" ?>", "<!DOCTYPE PubmedArticleSet PUBLIC \"-//NLM//DTD PubMedArticle, 1st June 2018//EN\" \"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_180601.dtd\">", "<PubmedArticleSet>", theData, "</PubmedArticleSet>", sep = "\n")
+	theData <- paste("<?xml version=\"1.0\" ?>", "<!DOCTYPE PubmedArticleSet PUBLIC \"-//NLM//DTD PubMedArticle, 1st January 2019//EN\" \"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_190101.dtd\">", "<PubmedArticleSet>", theData, "</PubmedArticleSet>", sep = "\n")
 	#theData <- paste(theData, "</PubmedArticleSet>")
 	theData <- iconv(theData, to = "UTF-8", sub = "")
 	writeLines(theData, outfile, sep = " ")
@@ -55,11 +55,15 @@ extract_xml <- function(theFile) {
 	meshHeadings <- lapply(records, xpathSApply, ".//DescriptorName", xmlValue)
 	meshHeadings[sapply(meshHeadings, is.list)] <- NA
 	meshHeadings <- sapply(meshHeadings, paste, collapse = "|")
+	chemNames <- lapply(records, xpathSApply, ".//NameOfSubstance", xmlValue)
+	chemNames[sapply(chemNames, is.list)] <- NA
+	chemNames <- sapply(chemNames, paste, collapse = "|")
 	grantAgency <- lapply(records, xpathSApply, ".//Grant/Agency", xmlValue)
 	grantAgency[sapply(grantAgency, is.list)] <- NA
 	grantAgency <- sapply(grantAgency, paste, collapse = "|")
 	grantAgency <- sapply(strsplit(grantAgency, "|", fixed = TRUE), unique)
 	grantAgency <- sapply(grantAgency, paste, collapse = "|")
+	names(grantAgency) <- NULL
 	grantNumber <- lapply(records, xpathSApply, ".//Grant/GrantID", xmlValue)
 	grantNumber[sapply(grantNumber, is.list)] <- NA
 	grantNumber <- sapply(grantNumber, paste, collapse = "|")
@@ -74,6 +78,6 @@ extract_xml <- function(theFile) {
 	ptype <- lapply(records, xpathSApply, ".//PublicationType", xmlValue)
 	ptype[sapply(ptype, is.list)] <- NA
 	ptype <- sapply(ptype, paste, collapse = "|")
-	theDF <- data.frame(pmid, doi, authors, year, articletitle, journal, volume, issue, pages, abstract, meshHeadings, grantAgency, grantNumber, grantCountry, nctID, ptype, stringsAsFactors = FALSE)
+	theDF <- data.frame(pmid, doi, authors, year, articletitle, journal, volume, issue, pages, abstract, meshHeadings, chemNames, grantAgency, grantNumber, grantCountry, nctID, ptype, stringsAsFactors = FALSE)
 	return(theDF)
 }
