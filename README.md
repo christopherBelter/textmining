@@ -39,9 +39,9 @@ Now you can use the other helper function in the pubmedXML.R file to extract the
 
     theData <- extract_xml(cxml)
 
-Finally, remove the pmids object from the PubMed history server and the cxml object to free up some additional memory.
+Finally, remove the pmids object from the PubMed history server and the XML objects from your session to free up some additional memory.
 
-    rm(pmids, cxml)
+    rm(pmids, rxml, cxml)
 
 ### Docuemnt preprocessing
 
@@ -91,7 +91,7 @@ As before, we can get some basic information about the document term matrix we'v
 
 You'll note the high term sparsity in the matrix. This essentially means we have lots of terms that are only used in one document in the set. We can safely remove them to speed up our functions without losing any meaningful information, so we'll go ahead and do so and then see what the dtm looks like afterwards.
 
-    dtm <- removeSparseTerms(dtm, 0.99)
+    dtm <- removeSparseTerms(dtm, 0.995)
     dtm
 
 After removing sparse terms, it's usually a good idea to re-remove documents without any text, because sometimes documents only contain sparse terms. That is, after removing sparse terms, some documents don't have any text left. So we'll do
@@ -133,16 +133,16 @@ This term list counts the total number of appearances of each term in all docume
     
 Essentially, by passing a comparison (dtm > 0) to the col_sums() function, you temporarily transform the dtm into a TRUE/FALSE matrix and, since in R TRUE has a numeric value of 1 and FALSE has a value of 0, when you add up the columns in that T/F matrix you add up the number of documents in which each term occurs.
 
-Another common task in text mining is to find associations between terms. That is, we can generate a list of terms that frequently co-occur with a specified term or set of terms. The function in tm is findAssocs(). In this example, we'll find term associations with the terms 'microcephaly' and 'mosquito' with a correlation greater than 0.2. 
+Another common task in text mining is to find associations between terms. That is, we can generate a list of terms that frequently co-occur with a specified term or set of terms. The function in tm is findAssocs(). In this example, we'll find term associations with the terms 'microcephaly' and 'mosquito' with a correlation greater than 0.25. 
 
-    assoc1 <- findAssocs(dtm, "microcephali", 0.2)
+    assoc1 <- findAssocs(dtm, "microcephali", 0.25)
     assoc1
-    assoc2 <- findAssocs(dtm, "mosquito", 0.2)
+    assoc2 <- findAssocs(dtm, "mosquito", 0.25)
     assoc2
 
 We can also create a list of associated terms for a list of terms using R's c() function. In this example, we'll look for terms associated with either 'dengue' or 'flavivirus', other emerging tropical diseases frequently discussed along with Zika.
 
-    assoc3 <- findAssocs(dtm, c("dengu", "flavivirus"), 0.2)
+    assoc3 <- findAssocs(dtm, c("dengu", "flavivirus"), 0.25)
     assoc3
 
 ### Cluster documents by topic
@@ -163,7 +163,7 @@ There's a lot in that command, so let me point out the relevant parts. The LDA()
 Once the algorithm is finished, there's a lot you can do with this ldaOut object. First, we'll extract the primary topic number for each document and save that to a .csv file.
 
     docTopics <- topics(ldaOut)
-    docTopics <- data.frame(id = names(docTopics), primaryTopic = docTopics)
+    docTopics <- data.frame(pmid = names(docTopics), primaryTopic = docTopics)
     write.csv(docTopics, file = "docstotopics.csv")
 
 Next, we'll extract the top 15 terms that appear in each topic. That is, we'll create lists of the 15 terms that most frequently appear in each of the 10 topics the algorithm identified. We'll also save that list to a .csv file and print it to the console to have a look. These terms are essential for understanding what each topic is actually about and subsequently naming it.
@@ -181,12 +181,12 @@ One thing that we can do with these probabilities is to generate a list of topic
 
     topicList <- topics(ldaOut, threshold = 0.15)
     topicList <- sapply(topicList, paste0, collapse = "|")
-    topicList <- data.frame(id = names(topicList), topicList = topicList)
+    topicList <- data.frame(pmid = names(topicList), topicList = topicList)
 
 Finally, we'll merge the both the primary topic and the topic probability list back into our original publications data frame and write the clustered data to a .csv file for later use.
 
-    newData <- merge(theData, docTopics, by.x = "pmid", by.y = "id", all.x = TRUE)
-    newData <- merge(newData, topicList, by.x = "pmid", by.y = "id", all.x = TRUE)
+    newData <- merge(theData, docTopics, by = "pmid", all.x = TRUE)
+    newData <- merge(newData, topicList, by = "pmid", all.x = TRUE)
     write.csv(newData, file = "clustered_data.csv")
     
 We can then get the number of documents per topic with the plyr count() function, as before.
