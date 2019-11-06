@@ -14,7 +14,7 @@ First, set your working directory and load the necessary helper files and packag
 
     setwd("C:/Documents/Text mining")
     source("pubmedXML.R")
-	mystopwords <- scan("stopwords.txt", what="varchar", skip=1)
+    mystopwords <- scan("stopwords.txt", what="varchar", skip=1)
     library(rentrez)
 
 Then save the PubMed search query you want to run. In this case I'll search for all publications in PubMed on Zika virus.
@@ -83,17 +83,17 @@ The final proprocessing steps are to load the text2vec package and create an ite
 One of the most common tasks in text mining is to find the most frequently occurring terms in the document set. The text2vec package does this with the create_vocabulary() function, which essentially creates a list of the unique terms found in all documents in the data set, along with the number of times each term appears in the data set and the number of documents in which each term appears.
 
     v <- create_vocabulary(it)
-	tail(v, 10)
+    tail(v, 10)
 
 You can also prune the vocabulary to remove terms that don't appear in at least 0.1% of the documents in the data set. 
 
     v <- prune_vocabulary(v, doc_proportion_min = 0.001)
-	head(v, 10)
+    head(v, 10)
 
 Or, you could prune the vocabulay to remove terms that do not appear in at least 4 documents. 
 
     v <- prune_vocabulary(v, doc_count_min = 4)
-	head(v, 10)
+    head(v, 10)
 
 Another common task in text mining is to find associations between terms. That is, we want to find terms that frequently occur together or near each other in our documents. To do these kinds of analyses, we'll create a term co-occurrence matrix (or tcm) that calculates the number of times two terms appear within x terms of each other in our document set. We first create a vectorizer to iterate over our documents and then create the tcm itself. 
 
@@ -105,7 +105,7 @@ The skip_grams_window argument specifies the maximum distance between terms, or 
 We can now get some information about the tcm using some basic R functions. 
 
     dim(tcm)
-	str(tcm)
+    str(tcm)
 
 You'll notice that this doesn't look like a traditional matrix, because the text2vec package stores matrices using structures from the Matrix package to save memory. That does help speed up the processing time, but it means we can't use traditional R subsetting methods to work with it. So we have to be creative.
 
@@ -143,7 +143,7 @@ Another common task in text mining is to group similar documents into topics. Th
 The first step is to create a document-term matrix where rows are documents in the data set and columns are terms that appear in all documents. The values are the number of times each term appears in each document.
 
     dtm <- create_dtm(it, vectorizer, type = "dgTMatrix")
-	str(dtm)
+    str(dtm)
 
 Once again, the structure of the matrix isn't what we're used to in R, but it is what's required for the text2vec functions to work. The function syntax in the text2vec package is also unlike anything else I've seen in R, so fair warning. 
 
@@ -155,7 +155,7 @@ The most important thing about that line of code is the n_topics argument, which
 
 With that done, we can now run the actual algorithm on our data set. 
 
-doc_topic_dist <- lda_model$fit_transform(x = dtm, n_iter = 2000, convergence_tol = 0.000001, n_check_convergence = 100)
+    doc_topic_dist <- lda_model$fit_transform(x = dtm, n_iter = 2000, convergence_tol = 0.000001, n_check_convergence = 100)
 
 Again, the arguments are the important things to point out here. The x argument is what we're running the algorithm on (i.e. our data) and the n_iter argument specifies the number of sampling iterations to run. In practice I set this to 2000, but the algorithm rarely runs that many iterations. Instead, it will stop early if the additional iterations don't improve the model's performance. 
 
@@ -168,7 +168,7 @@ Once the algorithm is finished, the result is a document-topic matrix giving you
 
 The n argument specifies the number of terms we want to get for each topic. The lambda parameter is an interesting one that I honestly don't fully understand. My sense is that a value of 1.0 means that you want the most frequent terms in each topic overall, whereas setting it to values below 1.0 means that you want terms that are more specific to the documents in that topic. That is, to words that rarely appear in other topics. 
 
-In practice, I usually run this twice: once with lanbda = 1.0 and again with lambda = 0.4 to try and identify terms that are unique to each topic. So:
+In practice, I usually run this twice: once with lambda = 1.0 and again with lambda = 0.4 to try and identify terms that are unique to each topic. So:
 
     terms2 <- lda_model$get_top_words(n = 15, lambda = 0.4)
     terms2
