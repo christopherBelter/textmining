@@ -1,0 +1,79 @@
+setwd("H:/Bibliometrics/Training/Text mining")
+source("H:/Bibliometrics/R/Functions/pubmedXML.R")
+mystopwords <- scan("H:/Bibliometrics/R/Functions/stopwords.txt", what="varchar", skip=1)
+
+## get publications
+library(rentrez)
+zika_ids <- entrez_search(db = "pubmed", term = "zika virus[mh]", use_history = TRUE)
+zika_ids$count
+zika <- entrez_fetch(db = "pubmed", web_history = zika_ids$web_history, rettype = "xml")
+pubs <- extract_xml(zika)
+rm(zika_ids)
+readr::write_file(zika, "zikaPubs.xml")
+rm(zika)
+
+## basic counts
+library(plyr)
+mesh <- count(unlist(strsplit(pubs$meshHeadings, "|", fixed = TRUE)))
+mesh <- mesh[order(mesh$freq),]
+tail(mesh, 15)
+
+## text preprocessing
+abstracts <- data.frame(pmid = pubs$pmid, text = paste(pubs$articletitle, pubs$abstract, sep = ". "), stringsAsFactors = FALSE)
+library(tm)
+abstracts$text <- removePunctuation(abstracts$text)
+abstracts$text <- tolower(abstracts$text)
+abstracts$text <- removeWords(abstracts$text, stopwords("English"))
+abstracts$text <- removeWords(abstracts$text, mystopwords)
+abstracts$text <- stemDocument(abstracts$text)
+abstracts$text <- stripWhitespace(abstracts$text)
+library(text2vec)
+it <- itoken(abstracts$text, pmid = abstracts$pmid)
+
+## get vocabulary and term counts
+v <- create_vocabulary(it)
+v <- prune_vocabulary(v, doc_proportion_min = 0.001) ## or doc_count_min = 4 
+tail(v, 10)
+
+## term analyses
+vectorizer <- vocab_vectorizer(v)
+tcm <- create_tcm(it, vectorizer, skip_grams_window = 5) ## skip_grams_window = 3 also works well
+dim(tcm) ## skip_grams_window is equivalent to NEAR/x: i.e. number of words separating the two terms. So skip_grams_window = 5 means terms w/in 5 words of each other
+str(tcm)
+
+## get most frequent associations, i.e. weight > 50
+highC <- which(tcm@x > 50) ## get matrix index values based on weight
+t1 <- tcm@i[highC] ## pull the row numbers associated with those index values
+t2 <- tcm@j[highC] ## pull the column numbers for those values
+assoc <- data.frame(term1 = tcm@Dimnames[[1]][t1 + 1], term2 = tcm@Dimnames[[2]][t2 + 1], weight = tcm@x[highC])
+## create a data frame for the row and column names from the index values and the weight from the x slot
+## no idea why I need to add 1 to t1 and t2
+
+## get specific term associations
+microcephali <- c(tcm[grep("microcephali\\b", tcm@Dimnames[[1]]),], tcm[,grep("microcephali\\b", tcm@Dimnames[[2]])])
+microcephali <- microcephali[microcephali > 0]
+microcephali <- sort(microcephali)
+tail(microcephali, 10)
+mosquito <- c(tcm[grep("mosquito\\b", tcm@Dimnames[[1]]),], tcm[,grep("mosquito\\b", tcm@Dimnames[[2]])])
+mosquito <- mosquito[mosquito > 0]
+mosquito <- sort(mosquito)
+tail(mosquito, 10)
+
+## do topic clustering
+dtm <- create_dtm(it, vectorizer, type = "dgTMatrix")
+str(dtm)
+lda_model <- LDA$new(n_topics = 10, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+doc_topic_dist <- lda_model$fit_transform(x = dtm, n_iter = 2000, convergence_tol = 0.000001, n_check_convergence = 100)
+write.csv(doc_topic_dist, file = "topicProbabilities.csv")
+modelTerms <- lda_model$get_top_words(n = 15, lambda = 1.0)
+modelTerms
+write.csv(modelTerms, file = "topicsToTerms.csv")
+terms2 <- lda_model$get_top_words(n = 15, lambda = 0.4)
+terms2
+write.csv(terms2, file = "topicsToTerms_v2.csv")
+docTopics <- data.frame(pmid = rownames(doc_topic_dist), topic = apply(doc_topic_dist, 1, which.max))
+write.csv(docTopics, file = "docsToTopics.csv", row.names = FALSE)
+tlist <- data.frame(pmid = rownames(doc_topic_dist), tList = sapply((sapply(1:nrow(doc_topic_dist), function(x) which(doc_topic_dist[x,] > 0.1))), paste, collapse = ";"))
+pubs <- merge(pubs, docTopics, by = "pmid", all.x = TRUE)
+pubs <- merge(pubs, tlist, by = "pmid", all.x = TRUE)
+write.csv(pubs, file = "clusteredData.csv", row.names = FALSE)
