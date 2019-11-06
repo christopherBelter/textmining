@@ -62,7 +62,7 @@ Then we'll load the tm package.
 
     library(tm)
 
-Now before we can do anything meaningful with these documents, we need to do some preprocessing on the text using a series of functions from the tm package. The next lines remove punctuation, transform all of the characters to lowercase, remove stopwords like 'and', 'the', and 'of' in two steps (the first uses the base set of stopwords and the second uses a list of custom stopwords provided in this repo), stem the terms in each document to remove word endings like '-s' and '-ing', and finally strip any extra whitespace created in the previous operations.
+We'll then use a series of functions from the tm package to clean up the text a bit to increase the accuracy of our analyses. The next lines remove punctuation, transform all of the characters to lowercase, remove stopwords like 'and', 'the', and 'of' in two steps (the first uses the base set of stopwords and the second uses a list of custom stopwords provided in this repo), stem the terms in each document to remove word endings like '-s' and '-ing', and finally strip any extra whitespace created in the previous operations.
 
     abstracts$text <- removePunctuation(abstracts$text)
     abstracts$text <- tolower(abstracts$text)
@@ -183,7 +183,7 @@ But we can also generate a list of topics to which each document has a high prob
 
     tlist <- data.frame(pmid = rownames(doc_topic_dist), tList = sapply((sapply(1:nrow(doc_topic_dist), function(x) which(doc_topic_dist[x,] > 0.15))), paste, collapse = ";"))
 
-Finally, we'll merge the both the primary topic and the topic probability list back into our original publications data frame and write the clustered data to a .csv file for later use.
+Finally, we'll merge the both the primary topic and the topic probability lists back into our original publications data frame and write the clustered data to a .csv file for later use.
 
     pubs <- merge(pubs, docTopics, by = "pmid", all.x = TRUE)
     pubs <- merge(pubs, tlist, by = "pmid", all.x = TRUE)
